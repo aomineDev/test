@@ -2,6 +2,6 @@
 
 ## Titulo secundario
 
-algo
+Lorem ipsum
 
 punto de partida
