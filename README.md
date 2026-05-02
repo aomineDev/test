@@ -2,6 +2,6 @@
 
 ## Titulo secundario
 
-algo
+Aqui va el contenido
 
 punto de partida
