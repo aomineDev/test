@@ -14,13 +14,60 @@ jobs:
       - name: Create Trello Card on Issue Opened
         if: github.event_name == 'issues' && github.event.action == 'opened'
         run: |
-          CARD_NAME="${{ github.event.issue.title }} (#${{ github.event.issue.number }})"
-          DESC="Creado desde GitHub: ${{ github.event.issue.html_url }}"
+          ASSIGNEE="${{ github.event.issue.assignee.login }}"
+          MILESTONE_DUE="${{ github.event.issue.milestone.due_on }}"
+          ISSUE_BODY="${{ github.event.issue.body }}"
           
-          curl --request POST \
-            --url "https://api.trello.com/1/cards?idList=6a1b4fe2a01690f4ad3e56db&key=${{ secrets.TRELLO_API_KEY }}&token=${{ secrets.TRELLO_TOKEN }}" \
+          DESC="Creado desde GitHub: ${{ github.event.issue.html_url }}"
+          if [ ! -z "$ASSIGNEE" ]; then
+            DESC="$DESC\nAsignado a: @$ASSIGNEE"
+          fi
+
+          # B. CREAR TARJETA EN TRELLO (Con fecha si existe)
+          URL="https://api.trello.com/1/cards?idList=6a1b4fe2a01690f4ad3e56db&key=${{ secrets.TRELLO_API_KEY }}&token=${{ secrets.TRELLO_TOKEN }}"
+          if [ "$MILESTONE_DUE" != "null" ] && [ ! -z "$MILESTONE_DUE" ]; then
+            URL="${URL}&due=${MILESTONE_DUE}"
+          fi
+
+          CARD_RESPONSE=$(curl --silent --request POST \
+            --url "$URL" \
             --data-urlencode "name=$CARD_NAME" \
-            --data-urlencode "desc=$DESC"
+            --data-urlencode "desc=$DESC")
+
+          CARD_ID=$(echo "$CARD_RESPONSE" | jq -r '.id')
+          echo "Tarjeta creada en Trello con ID: $CARD_ID"
+
+          # C. PROCESAR Y CREAR LA CHECKLIST DINÁMICA
+          # Creamos el contenedor de la checklist en Trello
+          CHECKLIST_RESPONSE=$(curl --silent --request POST \
+            --url "https://api.trello.com/1/cards/$CARD_ID/checklists?key=${{ secrets.TRELLO_API_KEY }}&token=${{ secrets.TRELLO_TOKEN }}" \
+            --data-urlencode "name=Subtareas")
+          
+          CHECKLIST_ID=$(echo "$CHECKLIST_RESPONSE" | jq -r '.id')
+
+          # Leemos el cuerpo de la issue, filtramos las líneas que tienen '- [ ]' y las añadimos a Trello
+          echo "$ISSUE_BODY" | grep -E '^[[:space:]]*-[[:space:]]\[[[:space:]]\]' | sed 's/^[[:space:]]*-[[:space:]]\[[[:space:]]\][[:space:]]*//' | while read -r subtask; do
+            if [ ! -z "$subtask" ]; then
+              echo "Añadiendo subtarea a Trello: $subtask"
+              curl --silent --request POST \
+                --url "https://api.trello.com/1/checklists/$CHECKLIST_ID/checkItems?key=${{ secrets.TRELLO_API_KEY }}&token=${{ secrets.TRELLO_TOKEN }}" \
+                --data-urlencode "name=$subtask"
+            fi
+          done
+
+          # D. ASIGNAR MIEMBROS EN TRELLO (Mapeo Manual)
+          if [ ! -z "$ASSIGNEE" ]; then
+            TRELLO_MEMBER_ID=""
+            case "$ASSIGNEE" in
+              "aomineDev") TRELLO_MEMBER_ID="6a1b303748f89fae87c99606" ;;
+              "CompañeroGithub2") TRELLO_MEMBER_ID="ID_TRELLO_DE_USUARIO_2" ;;
+            esac
+
+            if [ ! -z "$TRELLO_MEMBER_ID" ]; then
+              curl --silent --request POST \
+                --url "https://api.trello.com/1/cards/$CARD_ID/idMembers?value=${TRELLO_MEMBER_ID}&key=${{ secrets.TRELLO_API_KEY }}&token=${{ secrets.TRELLO_TOKEN }}"
+            fi
+          fi
 
       # 2. CUANDO SE ABRE UN PR -> MUEVE A "EN PROGRESO"
       # (Busca la tarjeta por el número de issue que pusiste en el título o descripción del PR, ej: #12)
