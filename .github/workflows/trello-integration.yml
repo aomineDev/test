@@ -28,21 +28,56 @@ jobs:
       # (Busca la tarjeta por el número de issue que pusiste en el título o descripción del PR, ej: #12)
       - name: Move to In Progress on PR Opened
         if: github.event_name == 'pull_request' && github.event.action == 'opened'
-        uses: tcardonne/trello-close-card@v1.3.0  # Esta acción es genial para buscar y mover
-        with:
-          trello-key: ${{ secrets.TRELLO_API_KEY }}
-          trello-token: ${{ secrets.TRELLO_TOKEN }}
-          trello-board: 'kc7fr6W6'
-          trello-list: '6a1b4fe803a3b2abaf737d84'
-          github-token: ${{ secrets.GITHUB_TOKEN }} # No necesitas crearlo, GitHub lo da por defecto
+        run: |
+          # Buscamos el número de issue en el título o cuerpo del PR (ej: #12)
+          # Buscamos en el texto del PR usando regex para extraer el número
+          ISSUE_NUM=$(echo "${{ github.event.pull_request.title }} ${{ github.event.pull_request.body }}" | grep -oE '#[0-7]*' | head -n 1)
+          
+          if [ -z "$ISSUE_NUM" ]; then
+            echo "No se encontró ninguna referencia a una issue (ej: #12) en el PR."
+            exit 0
+          fi
+          
+          echo "Buscando tarjeta en Trello que contenga $ISSUE_NUM..."
+          
+          # 1. Buscar la tarjeta por su nombre/número en el tablero
+          SEARCH_RES=$(curl --request GET \
+            --url "https://api.trello.com/1/search?query=${ISSUE_NUM}&idBoards=kc7fr6W6&modelTypes=cards&key=${{ secrets.TRELLO_API_KEY }}&token=${{ secrets.TRELLO_TOKEN }}")
+          
+          # Extraer el ID de la primera tarjeta encontrada usando la herramienta integrada 'jq'
+          CARD_ID=$(echo $SEARCH_RES | jq -r '.cards[0].id')
+          
+          if [ "$CARD_ID" != "null" ] && [ ! -z "$CARD_ID" ]; then
+            echo "Tarjeta encontrada (ID: $CARD_ID). Moviendo a En Progreso..."
+            # 2. Actualizar la lista de la tarjeta
+            curl --request PUT \
+              --url "https://api.trello.com/1/cards/$CARD_ID?idList=6a1b4fe803a3b2abaf737d84&key=${{ secrets.TRELLO_API_KEY }}&token=${{ secrets.TRELLO_TOKEN }}"
+          else
+            echo "No se encontró ninguna tarjeta en Trello con el texto $ISSUE_NUM"
+          fi
 
-      # 3. CUANDO SE APRUEBA EL PR -> MUEVE A "APROBADO"
+      # 3. MOVER A APROBADO AL ACEPTAR PR
       - name: Move to Done on PR Approval
         if: github.event_name == 'pull_request_review' && github.event.review.state == 'approved'
-        uses: tcardonne/trello-close-card@v1.3.0
-        with:
-          trello-key: ${{ secrets.TRELLO_API_KEY }}
-          trello-token: ${{ secrets.TRELLO_TOKEN }}
-          trello-board: 'kc7fr6W6'
-          trello-list: '6a1b4fe53a89cf2b28e8de6f'
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_NUM=$(echo "${{ github.event.pull_request.title }} ${{ github.event.pull_request.body }}" | grep -oE '#[0-7]*' | head -n 1)
+          
+          if [ -z "$ISSUE_NUM" ]; then
+            echo "No se encontró ninguna referencia a una issue (ej: #12) en el PR."
+            exit 0
+          fi
+          
+          echo "Buscando tarjeta en Trello para mover a Aprobado..."
+          
+          SEARCH_RES=$(curl --request GET \
+            --url "https://api.trello.com/1/search?query=${ISSUE_NUM}&idBoards=kc7fr6W6&modelTypes=cards&key=${{ secrets.TRELLO_API_KEY }}&token=${{ secrets.TRELLO_TOKEN }}")
+          
+          CARD_ID=$(echo $SEARCH_RES | jq -r '.cards[0].id')
+          
+          if [ "$CARD_ID" != "null" ] && [ ! -z "$CARD_ID" ]; then
+            echo "Tarjeta encontrada (ID: $CARD_ID). Moviendo a Aprobado..."
+            curl --request PUT \
+              --url "https://api.trello.com/1/cards/$CARD_ID?idList=6a1b4fe53a89cf2b28e8de6f&key=${{ secrets.TRELLO_API_KEY }}&token=${{ secrets.TRELLO_TOKEN }}"
+          else
+            echo "No se encontró la tarjeta."
+          fi
