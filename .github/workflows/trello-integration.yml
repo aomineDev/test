@@ -1,0 +1,48 @@
+name: Trello Integration
+
+on:
+  issues:
+    types: [opened]
+  pull_request:
+    types: [opened]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  trello-actions:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. CUANDO SE CREA UNA ISSUE -> CREA LA TARJETA EN "POR HACER"
+      - name: Create Trello Card on Issue Opened
+        if: github.event_name == 'issues' && github.event.action == 'opened'
+        run: |
+          CARD_NAME="${{ github.event.issue.title }} (#${{ github.event.issue.number }})"
+          DESC="Creado desde GitHub: ${{ github.event.issue.html_url }}"
+          
+          curl --request POST \
+            --url "https://api.trello.com/1/cards?idList=6a1b4feb0cf6175867c84569&key=${{ secrets.TRELLO_API_KEY }}&token=${{ secrets.TRELLO_TOKEN }}" \
+            --data-urlencode "name=$CARD_NAME" \
+            --data-urlencode "desc=$DESC"
+
+      # 2. CUANDO SE ABRE UN PR -> MUEVE A "EN PROGRESO"
+      # (Busca la tarjeta por el número de issue que pusiste en el título o descripción del PR, ej: #12)
+      - name: Move to In Progress on PR Opened
+        if: github.event_name == 'pull_request' && github.event.action == 'opened'
+        uses: tcardonne/trello-close-card@v1.3.0  # Esta acción es genial para buscar y mover
+        with:
+          trello-key: ${{ secrets.TRELLO_API_KEY }}
+          trello-token: ${{ secrets.TRELLO_TOKEN }}
+          trello-board: 'kc7fr6W6'
+          trello-list: '6a1b4fe803a3b2abaf737d84'
+          github-token: ${{ secrets.GITHUB_TOKEN }} # No necesitas crearlo, GitHub lo da por defecto
+
+      # 3. CUANDO SE APRUEBA EL PR -> MUEVE A "APROBADO"
+      - name: Move to Done on PR Approval
+        if: github.event_name == 'pull_request_review' && github.event.review.state == 'approved'
+        uses: tcardonne/trello-close-card@v1.3.0
+        with:
+          trello-key: ${{ secrets.TRELLO_API_KEY }}
+          trello-token: ${{ secrets.TRELLO_TOKEN }}
+          trello-board: 'kc7fr6W6'
+          trello-list: '6a1b4fe53a89cf2b28e8de6f'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
