@@ -29,55 +29,55 @@ jobs:
       - name: Move to In Progress on PR Opened
         if: github.event_name == 'pull_request' && github.event.action == 'opened'
         run: |
-          # Buscamos el número de issue en el título o cuerpo del PR (ej: #12)
-          # Buscamos en el texto del PR usando regex para extraer el número
-          ISSUE_NUM=$(echo "${{ github.event.pull_request.title }} ${{ github.event.pull_request.body }}" | grep -oE '#[0-7]*' | head -n 1)
+          # Extraemos el patrón '#4' exacto del PR
+          RAW_NUM=$(echo "${{ github.event.pull_request.title }} ${{ github.event.pull_request.body }}" | grep -oE '#[0-9]+' | head -n 1)
           
-          if [ -z "$ISSUE_NUM" ]; then
-            echo "No se encontró ninguna referencia a una issue (ej: #12) en el PR."
+          if [ -z "$RAW_NUM" ]; then
+            echo "No se encontró ninguna referencia a una issue (ej: #4) en el PR."
             exit 0
           fi
           
-          echo "Buscando tarjeta en Trello que contenga $ISSUE_NUM..."
+          echo "Buscando la tarjeta que contenga la cadena '$RAW_NUM' en la lista Por Hacer..."
           
-          # 1. Buscar la tarjeta por su nombre/número en el tablero
-          SEARCH_RES=$(curl --request GET \
-            --url "https://api.trello.com/1/search?query=${ISSUE_NUM}&idBoards=kc7fr6W6&modelTypes=cards&key=${{ secrets.TRELLO_API_KEY }}&token=${{ secrets.TRELLO_TOKEN }}")
+          # En lugar de usar /search, listamos TODAS las tarjetas de la lista "Por Hacer"
+          LIST_CARDS=$(curl --request GET \
+            --url "https://api.trello.com/1/lists/6a1b4fe2a01690f4ad3e56db/cards?key=${{ secrets.TRELLO_API_KEY }}&token=${{ secrets.TRELLO_TOKEN }}")
           
-          # Extraer el ID de la primera tarjeta encontrada usando la herramienta integrada 'jq'
-          CARD_ID=$(echo $SEARCH_RES | jq -r '.cards[0].id')
+          # Filtramos localmente con 'jq' buscando la tarjeta cuyo nombre contenga (e.g., "#4")
+          CARD_ID=$(echo "$LIST_CARDS" | jq -r --arg target "$RAW_NUM" '.[] | select(.name | contains($target)) | .id' | head -n 1)
           
           if [ "$CARD_ID" != "null" ] && [ ! -z "$CARD_ID" ]; then
-            echo "Tarjeta encontrada (ID: $CARD_ID). Moviendo a En Progreso..."
-            # 2. Actualizar la lista de la tarjeta
+            echo "Tarjeta encontrada de forma precisa (ID: $CARD_ID). Moviendo a En Progreso..."
             curl --request PUT \
               --url "https://api.trello.com/1/cards/$CARD_ID?idList=6a1b4fe803a3b2abaf737d84&key=${{ secrets.TRELLO_API_KEY }}&token=${{ secrets.TRELLO_TOKEN }}"
           else
-            echo "No se encontró ninguna tarjeta en Trello con el texto $ISSUE_NUM"
+            echo "No se encontró ninguna tarjeta en la lista que contenga la cadena $RAW_NUM"
           fi
 
       # 3. MOVER A APROBADO AL ACEPTAR PR
       - name: Move to Done on PR Approval
         if: github.event_name == 'pull_request_review' && github.event.review.state == 'approved'
         run: |
-          ISSUE_NUM=$(echo "${{ github.event.pull_request.title }} ${{ github.event.pull_request.body }}" | grep -oE '#[0-7]*' | head -n 1)
+          RAW_NUM=$(echo "${{ github.event.pull_request.title }} ${{ github.event.pull_request.body }}" | grep -oE '#[0-9]+' | head -n 1)
           
-          if [ -z "$ISSUE_NUM" ]; then
-            echo "No se encontró ninguna referencia a una issue (ej: #12) en el PR."
+          if [ -z "$RAW_NUM" ]; then
+            echo "No se encontró ninguna referencia a una issue en el PR."
             exit 0
           fi
           
-          echo "Buscando tarjeta en Trello para mover a Aprobado..."
+          echo "Buscando la tarjeta que contenga la cadena '$RAW_NUM' en la lista En Progreso..."
           
-          SEARCH_RES=$(curl --request GET \
-            --url "https://api.trello.com/1/search?query=${ISSUE_NUM}&idBoards=kc7fr6W6&modelTypes=cards&key=${{ secrets.TRELLO_API_KEY }}&token=${{ secrets.TRELLO_TOKEN }}")
+          # Listamos las tarjetas de la lista "En Progreso"
+          LIST_CARDS=$(curl --request GET \
+            --url "https://api.trello.com/1/lists/6a1b4fe803a3b2abaf737d84/cards?key=${{ secrets.TRELLO_API_KEY }}&token=${{ secrets.TRELLO_TOKEN }}")
           
-          CARD_ID=$(echo $SEARCH_RES | jq -r '.cards[0].id')
+          # Filtramos localmente con 'jq'
+          CARD_ID=$(echo "$LIST_CARDS" | jq -r --arg target "$RAW_NUM" '.[] | select(.name | contains($target)) | .id' | head -n 1)
           
           if [ "$CARD_ID" != "null" ] && [ ! -z "$CARD_ID" ]; then
             echo "Tarjeta encontrada (ID: $CARD_ID). Moviendo a Aprobado..."
             curl --request PUT \
               --url "https://api.trello.com/1/cards/$CARD_ID?idList=6a1b4fe53a89cf2b28e8de6f&key=${{ secrets.TRELLO_API_KEY }}&token=${{ secrets.TRELLO_TOKEN }}"
           else
-            echo "No se encontró la tarjeta."
+            echo "No se encontró la tarjeta en la lista de En Progreso."
           fi
