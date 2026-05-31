@@ -4,9 +4,7 @@ on:
   issues:
     types: [opened]
   pull_request:
-    types: [opened]
-  pull_request_review:
-    types: [submitted]
+    types: [opened, closed]
 
 jobs:
   trello-actions:
@@ -56,7 +54,7 @@ jobs:
 
       # 3. MOVER A APROBADO AL ACEPTAR PR
       - name: Move to Done on PR Approval
-        if: github.event_name == 'pull_request_review' && github.event.review.state == 'approved'
+        if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
         run: |
           RAW_NUM=$(echo "${{ github.event.pull_request.title }} ${{ github.event.pull_request.body }}" | grep -oE '#[0-9]+' | head -n 1)
           
