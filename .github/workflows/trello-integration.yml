@@ -20,7 +20,7 @@ jobs:
           DESC="Creado desde GitHub: ${{ github.event.issue.html_url }}"
           
           curl --request POST \
-            --url "https://api.trello.com/1/cards?idList=6a1b4feb0cf6175867c84569&key=${{ secrets.TRELLO_API_KEY }}&token=${{ secrets.TRELLO_TOKEN }}" \
+            --url "https://api.trello.com/1/cards?idList=6a1b4fe2a01690f4ad3e56db&key=${{ secrets.TRELLO_API_KEY }}&token=${{ secrets.TRELLO_TOKEN }}" \
             --data-urlencode "name=$CARD_NAME" \
             --data-urlencode "desc=$DESC"
 
