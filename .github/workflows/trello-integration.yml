@@ -14,6 +14,7 @@ jobs:
       - name: Create Trello Card on Issue Opened
         if: github.event_name == 'issues' && github.event.action == 'opened'
         run: |
+          CARD_NAME="${{ github.event.issue.title }} (#${{ github.event.issue.number }})"
           ASSIGNEE="${{ github.event.issue.assignee.login }}"
           MILESTONE_DUE="${{ github.event.issue.milestone.due_on }}"
           ISSUE_BODY="${{ github.event.issue.body }}"
