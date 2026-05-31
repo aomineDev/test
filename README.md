@@ -15,3 +15,5 @@ Aqui la documentacion del proyecto
 Probando automatizacion con trello segunda parte
 
 finalmente
+
+probando desde vs code
