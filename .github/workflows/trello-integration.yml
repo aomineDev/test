@@ -13,11 +13,12 @@ jobs:
       # 1. CUANDO SE CREA UNA ISSUE -> CREA LA TARJETA EN "POR HACER"
       - name: Create Trello Card on Issue Opened
         if: github.event_name == 'issues' && github.event.action == 'opened'
+        env:
+          RAW_BODY: ${{ github.event.issue.body }}
         run: |
           CARD_NAME="${{ github.event.issue.title }} (#${{ github.event.issue.number }})"
           ASSIGNEE="${{ github.event.issue.assignee.login }}"
           MILESTONE_DUE="${{ github.event.issue.milestone.due_on }}"
-          ISSUE_BODY="${{ github.event.issue.body }}"
           
           DESC="Creado desde GitHub: ${{ github.event.issue.html_url }}"
           if [ ! -z "$ASSIGNEE" ]; then
@@ -47,7 +48,7 @@ jobs:
           CHECKLIST_ID=$(echo "$CHECKLIST_RESPONSE" | jq -r '.id')
 
           # Leemos el cuerpo de la issue, filtramos las líneas que tienen '- [ ]' y las añadimos a Trello
-          echo "$ISSUE_BODY" | grep -E '^[[:space:]]*-[[:space:]]\[[[:space:]]\]' | sed 's/^[[:space:]]*-[[:space:]]\[[[:space:]]\][[:space:]]*//' | while read -r subtask; do
+          echo "$RAW_BODY" | grep -E '^[[:space:]]*-[[:space:]]\[[[:space:]]\]' | sed 's/^[[:space:]]*-[[:space:]]\[[[:space:]]\][[:space:]]*//' | while read -r subtask; do
             if [ ! -z "$subtask" ]; then
               echo "Añadiendo subtarea a Trello: $subtask"
               curl --silent --request POST \
