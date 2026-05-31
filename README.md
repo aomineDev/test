@@ -12,4 +12,4 @@ Aqui la documentacion del proyecto
 
 ### Automatizacion
 
-Probando automatizacion con trello
+Probando automatizacion con trello segunda parte
